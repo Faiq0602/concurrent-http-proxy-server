@@ -1,5 +1,6 @@
 #include "config.h"
 #include "logger.h"
+#include "proxy_server.h"
 
 int main(int argc, char **argv)
 {
@@ -16,7 +17,7 @@ int main(int argc, char **argv)
 
     logger_init(config.log_level);
     proxy_config_log(&config);
-    logger_log(LOG_INFO, "proxy server bootstrap complete");
+    logger_log(LOG_INFO, "starting single-client server skeleton");
 
-    return 0;
+    return proxy_server_run_once(&config) == 0 ? 0 : 1;
 }
