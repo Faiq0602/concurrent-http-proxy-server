@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 
     logger_init(config.log_level);
     proxy_config_log(&config);
-    logger_log(LOG_INFO, "starting single-client server skeleton");
+    logger_log(LOG_INFO, "starting proxy server");
 
-    return proxy_server_run_once(&config) == 0 ? 0 : 1;
+    return proxy_server_run(&config) == 0 ? 0 : 1;
 }

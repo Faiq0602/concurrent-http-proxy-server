@@ -8,6 +8,7 @@ SRC := \
 	src/error_response.c \
 	src/request_parser.c \
 	src/socket_utils.c \
+	src/thread_pool.c \
 	src/response_forwarder.c \
 	src/proxy_server.c
 OBJ := $(SRC:.c=.o)
@@ -19,7 +20,7 @@ LDLIBS := -lws2_32
 else
 RM := rm -f
 TARGET_BIN := $(TARGET)
-LDLIBS :=
+LDLIBS := -lpthread
 endif
 
 .PHONY: all clean
@@ -53,6 +54,7 @@ ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist src\\error_response.o del /Q src\\error_response.o"
 	-cmd /C "if exist src\\request_parser.o del /Q src\\request_parser.o"
 	-cmd /C "if exist src\\socket_utils.o del /Q src\\socket_utils.o"
+	-cmd /C "if exist src\\thread_pool.o del /Q src\\thread_pool.o"
 	-cmd /C "if exist src\\response_forwarder.o del /Q src\\response_forwarder.o"
 	-cmd /C "if exist src\\proxy_server.o del /Q src\\proxy_server.o"
 	-cmd /C "if exist tests\\test_request_parser.o del /Q tests\\test_request_parser.o"

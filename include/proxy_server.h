@@ -3,6 +3,6 @@
 
 #include "config.h"
 
-int proxy_server_run_once(const proxy_config_t *config);
+int proxy_server_run(const proxy_config_t *config);
 
 #endif

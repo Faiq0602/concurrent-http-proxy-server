@@ -185,6 +185,26 @@ int socket_utils_set_timeout(socket_handle_t socket_handle, int timeout_ms)
     return 0;
 }
 
+int socket_utils_wait_for_readable(socket_handle_t socket_handle, int timeout_ms)
+{
+    fd_set read_fds;
+    struct timeval timeout_value;
+    int ready_count;
+
+    FD_ZERO(&read_fds);
+    FD_SET(socket_handle, &read_fds);
+
+    timeout_value.tv_sec = timeout_ms / 1000;
+    timeout_value.tv_usec = (timeout_ms % 1000) * 1000;
+
+    ready_count = select((int)(socket_handle + 1), &read_fds, NULL, NULL, &timeout_value);
+    if (ready_count <= 0) {
+        return ready_count;
+    }
+
+    return FD_ISSET(socket_handle, &read_fds) ? 1 : 0;
+}
+
 socket_handle_t socket_utils_accept(socket_handle_t listener_socket,
     char *client_host, size_t client_host_size,
     char *client_service, size_t client_service_size)

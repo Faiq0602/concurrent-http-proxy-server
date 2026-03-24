@@ -124,4 +124,5 @@ void logger_log(log_level_t level, const char *fmt, ...)
     va_end(args);
 
     (void)fputc('\n', stderr);
+    (void)fflush(stderr);
 }

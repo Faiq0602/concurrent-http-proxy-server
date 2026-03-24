@@ -8,6 +8,7 @@ static void error_vreport(const char *prefix, const char *fmt, va_list args)
     (void)fprintf(stderr, "%s", prefix);
     (void)vfprintf(stderr, fmt, args);
     (void)fputc('\n', stderr);
+    (void)fflush(stderr);
 }
 
 void error_report(const char *fmt, ...)
