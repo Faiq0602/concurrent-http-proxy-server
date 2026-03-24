@@ -1,0 +1,9 @@
+AGENTS.md
+build/
+*.o
+*.out
+*.log
+proxy
+proxy_server
+proxy.exe
+proxy_server.exe
