@@ -5,37 +5,28 @@
 
 #include "error.h"
 #include "logger.h"
+#include "request_parser.h"
 #include "socket_utils.h"
 
 #define PROXY_SERVER_BACKLOG 16
 #define PROXY_SERVER_READ_BUFFER_SIZE 8192
 
-static void log_request_line(const char *request_bytes)
+static void log_parsed_request(const char *request_bytes)
 {
-    const char *line_end;
-    size_t line_length;
-    char request_line[1024];
+    http_request_t request;
 
     if (request_bytes == NULL || request_bytes[0] == '\0') {
         logger_log(LOG_WARN, "received empty request payload");
         return;
     }
 
-    line_end = strpbrk(request_bytes, "\r\n");
-    if (line_end == NULL) {
-        line_length = strlen(request_bytes);
-    } else {
-        line_length = (size_t)(line_end - request_bytes);
+    if (request_parser_parse(request_bytes, &request) != 0) {
+        logger_log(LOG_WARN, "failed to parse incoming proxy request");
+        return;
     }
 
-    if (line_length >= sizeof(request_line)) {
-        line_length = sizeof(request_line) - 1;
-    }
-
-    (void)memcpy(request_line, request_bytes, line_length);
-    request_line[line_length] = '\0';
-
-    logger_log(LOG_INFO, "request line: %s", request_line);
+    logger_log(LOG_INFO, "parsed request: method=%s host=%s port=%d path=%s version=%s",
+        request.method, request.host, request.port, request.path, request.version);
 }
 
 int proxy_server_run_once(const proxy_config_t *config)
@@ -93,7 +84,7 @@ int proxy_server_run_once(const proxy_config_t *config)
 
     request_buffer[bytes_read] = '\0';
     logger_log(LOG_INFO, "read %d request bytes", bytes_read);
-    log_request_line(request_buffer);
+    log_parsed_request(request_buffer);
 
     socket_utils_close(client_socket);
     socket_utils_close(listener_socket);
