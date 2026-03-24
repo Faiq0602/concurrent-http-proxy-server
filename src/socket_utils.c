@@ -151,6 +151,40 @@ socket_handle_t socket_utils_connect_to_host(const char *host, int port)
     return socket_handle;
 }
 
+int socket_utils_set_timeout(socket_handle_t socket_handle, int timeout_ms)
+{
+#if defined(_WIN32)
+    DWORD timeout_value = (DWORD)timeout_ms;
+
+    if (setsockopt(socket_handle, SOL_SOCKET, SO_RCVTIMEO,
+            (const char *)&timeout_value, (int)sizeof(timeout_value)) != 0) {
+        return -1;
+    }
+
+    if (setsockopt(socket_handle, SOL_SOCKET, SO_SNDTIMEO,
+            (const char *)&timeout_value, (int)sizeof(timeout_value)) != 0) {
+        return -1;
+    }
+#else
+    struct timeval timeout_value;
+
+    timeout_value.tv_sec = timeout_ms / 1000;
+    timeout_value.tv_usec = (timeout_ms % 1000) * 1000;
+
+    if (setsockopt(socket_handle, SOL_SOCKET, SO_RCVTIMEO,
+            &timeout_value, sizeof(timeout_value)) != 0) {
+        return -1;
+    }
+
+    if (setsockopt(socket_handle, SOL_SOCKET, SO_SNDTIMEO,
+            &timeout_value, sizeof(timeout_value)) != 0) {
+        return -1;
+    }
+#endif
+
+    return 0;
+}
+
 socket_handle_t socket_utils_accept(socket_handle_t listener_socket,
     char *client_host, size_t client_host_size,
     char *client_service, size_t client_service_size)

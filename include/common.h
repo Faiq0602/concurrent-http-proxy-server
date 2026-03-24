@@ -1,0 +1,7 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#define PROXY_REQUEST_BUFFER_SIZE 8192
+#define PROXY_SOCKET_TIMEOUT_MS 5000
+
+#endif

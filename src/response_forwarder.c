@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common.h"
 #include "error.h"
 #include "logger.h"
 
@@ -140,6 +141,13 @@ int response_forwarder_forward(socket_handle_t client_socket,
     if (origin_socket == SOCKET_HANDLE_INVALID) {
         error_report("failed to connect to origin %s:%d (code=%d)",
             request->host, request->port, socket_utils_get_last_error());
+        return -1;
+    }
+
+    if (socket_utils_set_timeout(origin_socket, PROXY_SOCKET_TIMEOUT_MS) != 0) {
+        error_report("failed to set origin socket timeout for %s:%d (code=%d)",
+            request->host, request->port, socket_utils_get_last_error());
+        socket_utils_close(origin_socket);
         return -1;
     }
 

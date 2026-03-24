@@ -5,6 +5,7 @@ SRC := \
 	src/config.c \
 	src/logger.c \
 	src/error.c \
+	src/error_response.c \
 	src/request_parser.c \
 	src/socket_utils.c \
 	src/response_forwarder.c \
@@ -49,6 +50,7 @@ ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist src\\config.o del /Q src\\config.o"
 	-cmd /C "if exist src\\logger.o del /Q src\\logger.o"
 	-cmd /C "if exist src\\error.o del /Q src\\error.o"
+	-cmd /C "if exist src\\error_response.o del /Q src\\error_response.o"
 	-cmd /C "if exist src\\request_parser.o del /Q src\\request_parser.o"
 	-cmd /C "if exist src\\socket_utils.o del /Q src\\socket_utils.o"
 	-cmd /C "if exist src\\response_forwarder.o del /Q src\\response_forwarder.o"

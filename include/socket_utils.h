@@ -21,6 +21,7 @@ void socket_utils_cleanup(void);
 int socket_utils_get_last_error(void);
 socket_handle_t socket_utils_create_listener(int port, int backlog);
 socket_handle_t socket_utils_connect_to_host(const char *host, int port);
+int socket_utils_set_timeout(socket_handle_t socket_handle, int timeout_ms);
 socket_handle_t socket_utils_accept(socket_handle_t listener_socket,
     char *client_host, size_t client_host_size,
     char *client_service, size_t client_service_size);
