@@ -93,11 +93,39 @@ static int test_object_too_large(void)
     return 0;
 }
 
+static int test_overwrite_existing_entry(void)
+{
+    static const unsigned char first[] = "abc";
+    static const unsigned char second[] = "updated";
+    cache_t *cache = cache_create(32, 16);
+    cache_value_t value;
+
+    if (cache == NULL) {
+        return 1;
+    }
+
+    if (cache_put(cache, "same", first, sizeof(first)) != 0 ||
+        cache_put(cache, "same", second, sizeof(second)) != 0 ||
+        assert_true(cache_entry_count(cache) == 1, "overwrite should not duplicate entry") != 0 ||
+        assert_true(cache_get(cache, "same", &value) == 0, "overwritten entry should be readable") != 0 ||
+        assert_true(value.size_bytes == sizeof(second), "overwritten size should match latest bytes") != 0 ||
+        assert_true(memcmp(value.data, second, sizeof(second)) == 0,
+            "overwritten payload should match latest value") != 0) {
+        cache_destroy(cache);
+        return 1;
+    }
+
+    cache_value_free(&value);
+    cache_destroy(cache);
+    return 0;
+}
+
 int main(void)
 {
     if (test_put_get() != 0 ||
         test_lru_eviction() != 0 ||
-        test_object_too_large() != 0) {
+        test_object_too_large() != 0 ||
+        test_overwrite_existing_entry() != 0) {
         return 1;
     }
 

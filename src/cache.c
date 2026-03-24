@@ -137,6 +137,41 @@ static void cache_evict_if_needed_locked(cache_t *cache, size_t incoming_size)
     }
 }
 
+static int cache_replace_entry_locked(cache_t *cache, cache_entry_t *entry,
+    const unsigned char *data, size_t size_bytes)
+{
+    unsigned char *new_data;
+    size_t previous_size;
+
+    previous_size = entry->lru.size_bytes;
+    if (size_bytes > previous_size) {
+        cache->current_size_bytes -= previous_size;
+        lru_detach(&cache->lru_list, &entry->lru);
+        cache_evict_if_needed_locked(cache, size_bytes);
+        lru_attach_front(&cache->lru_list, &entry->lru);
+        if (cache->current_size_bytes + size_bytes > cache->max_total_size_bytes) {
+            cache->current_size_bytes += previous_size;
+            return -1;
+        }
+    } else {
+        cache->current_size_bytes -= previous_size;
+    }
+
+    new_data = (unsigned char *)malloc(size_bytes);
+    if (new_data == NULL) {
+        cache->current_size_bytes += previous_size;
+        return -1;
+    }
+
+    (void)memcpy(new_data, data, size_bytes);
+    free(entry->lru.data);
+    entry->lru.data = new_data;
+    entry->lru.size_bytes = size_bytes;
+    cache->current_size_bytes += size_bytes;
+    lru_move_to_front(&cache->lru_list, &entry->lru);
+    return 0;
+}
+
 cache_t *cache_create(size_t max_total_size_bytes, size_t max_object_size_bytes)
 {
     cache_t *cache;
@@ -213,23 +248,10 @@ int cache_put(cache_t *cache, const char *key, const unsigned char *data, size_t
 
     entry = cache_find_entry_locked(cache, key, &bucket_index);
     if (entry != NULL) {
-        unsigned char *new_data = (unsigned char *)malloc(size_bytes);
-        if (new_data == NULL) {
-            cache_unlock(cache);
-            return -1;
-        }
+        int replace_result = cache_replace_entry_locked(cache, entry, data, size_bytes);
 
-        (void)memcpy(new_data, data, size_bytes);
-        cache->current_size_bytes -= entry->lru.size_bytes;
-        free(entry->lru.data);
-        entry->lru.data = new_data;
-        entry->lru.size_bytes = size_bytes;
-        cache_evict_if_needed_locked(cache, size_bytes);
-        entry->lru.size_bytes = size_bytes;
-        cache->current_size_bytes += size_bytes;
-        lru_move_to_front(&cache->lru_list, &entry->lru);
         cache_unlock(cache);
-        return 0;
+        return replace_result;
     }
 
     cache_evict_if_needed_locked(cache, size_bytes);

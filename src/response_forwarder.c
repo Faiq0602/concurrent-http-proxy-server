@@ -1,5 +1,6 @@
 #include "response_forwarder.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -124,17 +125,28 @@ static int build_origin_request(const http_request_t *request,
 }
 
 int response_forwarder_forward(socket_handle_t client_socket,
-    const http_request_t *request)
+    const http_request_t *request, size_t max_capture_size_bytes,
+    forwarder_capture_t *capture)
 {
     socket_handle_t origin_socket = SOCKET_HANDLE_INVALID;
     char outbound_request[FORWARDER_REQUEST_BUFFER_SIZE];
     char response_buffer[FORWARDER_RESPONSE_BUFFER_SIZE];
+    unsigned char *capture_buffer = NULL;
+    size_t capture_size = 0;
+    size_t capture_capacity = 0;
+    int capture_enabled = 0;
     int request_size;
     int bytes_read;
 
     if (request == NULL) {
         error_report("cannot forward a null request");
         return -1;
+    }
+
+    if (capture != NULL) {
+        capture->data = NULL;
+        capture->size_bytes = 0;
+        capture_enabled = max_capture_size_bytes > 0;
     }
 
     origin_socket = socket_utils_connect_to_host(request->host, request->port);
@@ -182,15 +194,67 @@ int response_forwarder_forward(socket_handle_t client_socket,
             break;
         }
 
+        if (capture_enabled && capture != NULL) {
+            if (capture_size + (size_t)bytes_read > max_capture_size_bytes) {
+                free(capture_buffer);
+                capture_buffer = NULL;
+                capture_size = 0;
+                capture_capacity = 0;
+                capture_enabled = 0;
+            } else if (capture_size + (size_t)bytes_read > capture_capacity) {
+                size_t next_capacity = capture_capacity == 0 ? (size_t)bytes_read : capture_capacity * 2;
+                unsigned char *next_buffer;
+
+                while (next_capacity < capture_size + (size_t)bytes_read) {
+                    next_capacity *= 2;
+                }
+
+                next_buffer = (unsigned char *)realloc(capture_buffer, next_capacity);
+                if (next_buffer == NULL) {
+                    free(capture_buffer);
+                    capture_buffer = NULL;
+                    capture_size = 0;
+                    capture_capacity = 0;
+                    capture_enabled = 0;
+                } else {
+                    capture_buffer = next_buffer;
+                    capture_capacity = next_capacity;
+                }
+            }
+
+            if (capture_enabled) {
+                (void)memcpy(capture_buffer + capture_size, response_buffer, (size_t)bytes_read);
+                capture_size += (size_t)bytes_read;
+            }
+        }
+
         if (socket_utils_write_all(client_socket, response_buffer, (size_t)bytes_read) != 0) {
             error_report("failed while relaying response to client (code=%d)",
                 socket_utils_get_last_error());
             socket_utils_close(origin_socket);
+            free(capture_buffer);
             return -1;
         }
     }
 
     socket_utils_close(origin_socket);
+    if (capture != NULL && capture_enabled && capture_buffer != NULL) {
+        capture->data = capture_buffer;
+        capture->size_bytes = capture_size;
+    } else {
+        free(capture_buffer);
+    }
     logger_log(LOG_INFO, "completed response relay for %s:%d", request->host, request->port);
     return 0;
+}
+
+void response_forwarder_capture_free(forwarder_capture_t *capture)
+{
+    if (capture == NULL) {
+        return;
+    }
+
+    free(capture->data);
+    capture->data = NULL;
+    capture->size_bytes = 0;
 }
