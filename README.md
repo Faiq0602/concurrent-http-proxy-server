@@ -18,7 +18,6 @@ The repository is designed to be easy to understand and maintain:
 
 - modular C code with clear boundaries
 - strict compiler flags
-- incremental PR-sized history
 - unit tests for core modules
 - concise architecture and design notes
 
