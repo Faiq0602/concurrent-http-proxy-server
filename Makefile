@@ -34,13 +34,16 @@ TEST_LRU_TARGET := tests/test_lru.exe
 TEST_LRU_OBJ := tests/test_lru.o src/lru.o
 TEST_CACHE_TARGET := tests/test_cache.exe
 TEST_CACHE_OBJ := tests/test_cache.o src/cache.o src/lru.o
+TEST_METRICS_TARGET := tests/test_metrics.exe
+TEST_METRICS_OBJ := tests/test_metrics.o src/metrics.o src/logger.o
 
 all: $(TARGET_BIN)
 
-test: $(TEST_TARGET) $(TEST_LRU_TARGET) $(TEST_CACHE_TARGET)
+test: $(TEST_TARGET) $(TEST_LRU_TARGET) $(TEST_CACHE_TARGET) $(TEST_METRICS_TARGET)
 	.\$(TEST_TARGET)
 	.\$(TEST_LRU_TARGET)
 	.\$(TEST_CACHE_TARGET)
+	.\$(TEST_METRICS_TARGET)
 
 $(TARGET_BIN): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $(TARGET_BIN) $(LDLIBS)
@@ -60,6 +63,9 @@ $(TEST_LRU_TARGET): $(TEST_LRU_OBJ)
 $(TEST_CACHE_TARGET): $(TEST_CACHE_OBJ)
 	$(CC) $(CFLAGS) $(TEST_CACHE_OBJ) -o $(TEST_CACHE_TARGET)
 
+$(TEST_METRICS_TARGET): $(TEST_METRICS_OBJ)
+	$(CC) $(CFLAGS) $(TEST_METRICS_OBJ) -o $(TEST_METRICS_TARGET)
+
 clean:
 ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist src\\main.o del /Q src\\main.o"
@@ -77,10 +83,12 @@ ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist tests\\test_request_parser.o del /Q tests\\test_request_parser.o"
 	-cmd /C "if exist tests\\test_lru.o del /Q tests\\test_lru.o"
 	-cmd /C "if exist tests\\test_cache.o del /Q tests\\test_cache.o"
+	-cmd /C "if exist tests\\test_metrics.o del /Q tests\\test_metrics.o"
 	-cmd /C "if exist tests\\test_request_parser.exe del /Q tests\\test_request_parser.exe"
 	-cmd /C "if exist tests\\test_lru.exe del /Q tests\\test_lru.exe"
 	-cmd /C "if exist tests\\test_cache.exe del /Q tests\\test_cache.exe"
+	-cmd /C "if exist tests\\test_metrics.exe del /Q tests\\test_metrics.exe"
 	-cmd /C "if exist $(TARGET_BIN) del /Q $(TARGET_BIN)"
 else
-	$(RM) $(OBJ) $(TEST_OBJ) $(TEST_LRU_OBJ) $(TEST_CACHE_OBJ) $(TARGET_BIN) $(TEST_TARGET) $(TEST_LRU_TARGET) $(TEST_CACHE_TARGET)
+	$(RM) $(OBJ) $(TEST_OBJ) $(TEST_LRU_OBJ) $(TEST_CACHE_OBJ) $(TEST_METRICS_OBJ) $(TARGET_BIN) $(TEST_TARGET) $(TEST_LRU_TARGET) $(TEST_CACHE_TARGET) $(TEST_METRICS_TARGET)
 endif
