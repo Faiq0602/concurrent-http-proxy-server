@@ -10,6 +10,7 @@
 #include "error.h"
 #include "error_response.h"
 #include "logger.h"
+#include "metrics.h"
 #include "request_parser.h"
 #include "response_forwarder.h"
 #include "socket_utils.h"
@@ -20,6 +21,7 @@
 typedef struct {
     const proxy_config_t *config;
     cache_t *cache;
+    metrics_t *metrics;
 } proxy_server_context_t;
 
 static volatile sig_atomic_t g_shutdown_requested = 0;
@@ -98,8 +100,10 @@ static void process_client_connection(const client_job_t *job, void *context)
     socket_handle_t client_socket;
     char request_buffer[PROXY_REQUEST_BUFFER_SIZE];
     char cache_key[PROXY_CACHE_KEY_SIZE];
+    cache_put_result_t cache_put_result;
     cache_value_t cached_response;
     forwarder_capture_t captured_response;
+    forwarder_result_t forwarder_result;
     http_request_t request;
     int bytes_read;
 
@@ -108,12 +112,15 @@ static void process_client_connection(const client_job_t *job, void *context)
     }
 
     client_socket = job->client_socket;
+    metrics_increment_total_requests(server_context->metrics);
+    metrics_increment_active_connections(server_context->metrics);
     logger_log(LOG_INFO, "worker handling client %s:%s", job->client_host, job->client_service);
 
     if (socket_utils_set_timeout(client_socket, PROXY_SOCKET_TIMEOUT_MS) != 0) {
         error_report("failed to set client socket timeout (code=%d)",
             socket_utils_get_last_error());
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     }
 
@@ -125,12 +132,14 @@ static void process_client_connection(const client_job_t *job, void *context)
         (void)error_response_send(client_socket, 408, "Request Timeout",
             "request read failed or timed out\n");
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     case 1:
         logger_log(LOG_WARN, "request exceeded buffer limit");
         (void)error_response_send(client_socket, 413, "Payload Too Large",
             "request headers exceed supported size\n");
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     default:
         break;
@@ -141,15 +150,18 @@ static void process_client_connection(const client_job_t *job, void *context)
         (void)error_response_send(client_socket, 400, "Bad Request",
             "empty request received\n");
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     }
 
     logger_log(LOG_INFO, "read %d request bytes", bytes_read);
+    metrics_add_bytes_in(server_context->metrics, (size_t)bytes_read);
     if (request_parser_parse(request_buffer, &request) != 0) {
         logger_log(LOG_WARN, "failed to parse incoming proxy request");
         (void)error_response_send(client_socket, 400, "Bad Request",
             "unsupported or malformed proxy request\n");
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     }
 
@@ -160,6 +172,8 @@ static void process_client_connection(const client_job_t *job, void *context)
     cached_response.size_bytes = 0;
     captured_response.data = NULL;
     captured_response.size_bytes = 0;
+    forwarder_result.origin_response_bytes = 0;
+    cache_put_result.evicted = 0;
     cache_key[0] = '\0';
 
     if (build_cache_key(&request, cache_key, sizeof(cache_key)) != 0) {
@@ -167,35 +181,45 @@ static void process_client_connection(const client_job_t *job, void *context)
     } else if (server_context->cache != NULL &&
                cache_get(server_context->cache, cache_key, &cached_response) == 0) {
         logger_log(LOG_INFO, "cache hit: %s", cache_key);
+        metrics_increment_cache_hits(server_context->metrics);
         if (socket_utils_write_all(client_socket,
                 (const char *)cached_response.data, cached_response.size_bytes) != 0) {
             error_report("failed to replay cached response to client (code=%d)",
                 socket_utils_get_last_error());
         }
+        metrics_add_bytes_out(server_context->metrics, cached_response.size_bytes);
         cache_value_free(&cached_response);
         socket_utils_close(client_socket);
         logger_log(LOG_INFO, "completed client %s:%s from cache", job->client_host, job->client_service);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     }
 
     if (cache_key[0] != '\0') {
         logger_log(LOG_INFO, "cache miss: %s", cache_key);
+        metrics_increment_cache_misses(server_context->metrics);
     }
 
     if (response_forwarder_forward(client_socket, &request, PROXY_CACHE_MAX_OBJECT_SIZE,
-            &captured_response) != 0) {
+            &captured_response, &forwarder_result) != 0) {
+        metrics_increment_origin_fetch_failures(server_context->metrics);
         (void)error_response_send(client_socket, 502, "Bad Gateway",
             "failed to fetch response from origin server\n");
         socket_utils_close(client_socket);
+        metrics_decrement_active_connections(server_context->metrics);
         return;
     }
+    metrics_add_bytes_out(server_context->metrics, forwarder_result.origin_response_bytes);
 
     if (cache_key[0] != '\0' && server_context->cache != NULL &&
         captured_response.data != NULL && captured_response.size_bytes > 0) {
         if (cache_put(server_context->cache, cache_key,
-                captured_response.data, captured_response.size_bytes) == 0) {
+                captured_response.data, captured_response.size_bytes, &cache_put_result) == 0) {
             logger_log(LOG_INFO, "cached response: key=%s bytes=%lu",
                 cache_key, (unsigned long)captured_response.size_bytes);
+            if (cache_put_result.evicted) {
+                metrics_increment_cache_evictions(server_context->metrics);
+            }
         } else {
             logger_log(LOG_DEBUG, "response not cached: key=%s bytes=%lu",
                 cache_key, (unsigned long)captured_response.size_bytes);
@@ -205,6 +229,7 @@ static void process_client_connection(const client_job_t *job, void *context)
 
     socket_utils_close(client_socket);
     logger_log(LOG_INFO, "completed client %s:%s", job->client_host, job->client_service);
+    metrics_decrement_active_connections(server_context->metrics);
 }
 
 int proxy_server_run(const proxy_config_t *config)
@@ -212,6 +237,7 @@ int proxy_server_run(const proxy_config_t *config)
     socket_handle_t listener_socket = SOCKET_HANDLE_INVALID;
     thread_pool_t *thread_pool = NULL;
     proxy_server_context_t server_context;
+    metrics_t *metrics = NULL;
     size_t max_object_size_bytes;
     client_job_t job;
     int accept_ready;
@@ -229,10 +255,18 @@ int proxy_server_run(const proxy_config_t *config)
         return -1;
     }
 
+    metrics = metrics_create();
+    if (metrics == NULL) {
+        error_report("failed to initialize metrics");
+        socket_utils_cleanup();
+        return -1;
+    }
+
     listener_socket = socket_utils_create_listener(config->port, PROXY_SERVER_BACKLOG);
     if (listener_socket == SOCKET_HANDLE_INVALID) {
         error_report("failed to create listening socket on port %d (code=%d)",
             config->port, socket_utils_get_last_error());
+        metrics_destroy(metrics);
         socket_utils_cleanup();
         return -1;
     }
@@ -244,17 +278,20 @@ int proxy_server_run(const proxy_config_t *config)
     if (server_context.cache == NULL) {
         error_report("failed to initialize shared cache");
         socket_utils_close(listener_socket);
+        metrics_destroy(metrics);
         socket_utils_cleanup();
         return -1;
     }
 
     server_context.config = config;
+    server_context.metrics = metrics;
     thread_pool = thread_pool_create(config->worker_count, PROXY_THREAD_POOL_QUEUE_CAPACITY,
         process_client_connection, &server_context);
     if (thread_pool == NULL) {
         error_report("failed to initialize thread pool with %d workers", config->worker_count);
         cache_destroy(server_context.cache);
         socket_utils_close(listener_socket);
+        metrics_destroy(metrics);
         socket_utils_cleanup();
         return -1;
     }
@@ -304,6 +341,8 @@ int proxy_server_run(const proxy_config_t *config)
 
     socket_utils_close(listener_socket);
     thread_pool_destroy(thread_pool);
+    metrics_log_summary(metrics);
+    metrics_destroy(metrics);
     cache_destroy(server_context.cache);
     socket_utils_cleanup();
     logger_log(LOG_INFO, "proxy server shutdown complete");

@@ -126,7 +126,7 @@ static int build_origin_request(const http_request_t *request,
 
 int response_forwarder_forward(socket_handle_t client_socket,
     const http_request_t *request, size_t max_capture_size_bytes,
-    forwarder_capture_t *capture)
+    forwarder_capture_t *capture, forwarder_result_t *result)
 {
     socket_handle_t origin_socket = SOCKET_HANDLE_INVALID;
     char outbound_request[FORWARDER_REQUEST_BUFFER_SIZE];
@@ -147,6 +147,9 @@ int response_forwarder_forward(socket_handle_t client_socket,
         capture->data = NULL;
         capture->size_bytes = 0;
         capture_enabled = max_capture_size_bytes > 0;
+    }
+    if (result != NULL) {
+        result->origin_response_bytes = 0;
     }
 
     origin_socket = socket_utils_connect_to_host(request->host, request->port);
@@ -192,6 +195,10 @@ int response_forwarder_forward(socket_handle_t client_socket,
 
         if (bytes_read == 0) {
             break;
+        }
+
+        if (result != NULL) {
+            result->origin_response_bytes += (size_t)bytes_read;
         }
 
         if (capture_enabled && capture != NULL) {

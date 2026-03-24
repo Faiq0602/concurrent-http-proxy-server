@@ -18,12 +18,13 @@ static int test_put_get(void)
     static const unsigned char payload[] = "alpha";
     cache_t *cache = cache_create(64, 32);
     cache_value_t value;
+    cache_put_result_t result;
 
     if (cache == NULL) {
         return 1;
     }
 
-    if (assert_true(cache_put(cache, "a", payload, sizeof(payload)) == 0,
+    if (assert_true(cache_put(cache, "a", payload, sizeof(payload), &result) == 0,
             "cache_put should succeed") != 0 ||
         assert_true(cache_get(cache, "a", &value) == 0,
             "cache_get should succeed") != 0 ||
@@ -47,14 +48,15 @@ static int test_lru_eviction(void)
     static const unsigned char payload_c[] = "cccc";
     cache_t *cache = cache_create(10, 8);
     cache_value_t value;
+    cache_put_result_t result;
 
     if (cache == NULL) {
         return 1;
     }
 
-    if (cache_put(cache, "a", payload_a, 4) != 0 ||
-        cache_put(cache, "b", payload_b, 4) != 0 ||
-        cache_put(cache, "c", payload_c, 4) != 0) {
+    if (cache_put(cache, "a", payload_a, 4, &result) != 0 ||
+        cache_put(cache, "b", payload_b, 4, &result) != 0 ||
+        cache_put(cache, "c", payload_c, 4, &result) != 0) {
         cache_destroy(cache);
         return 1;
     }
@@ -78,12 +80,13 @@ static int test_object_too_large(void)
 {
     static const unsigned char payload[] = "123456789";
     cache_t *cache = cache_create(16, 4);
+    cache_put_result_t result;
 
     if (cache == NULL) {
         return 1;
     }
 
-    if (assert_true(cache_put(cache, "oversized", payload, 9) != 0,
+    if (assert_true(cache_put(cache, "oversized", payload, 9, &result) != 0,
             "oversized object should be rejected") != 0) {
         cache_destroy(cache);
         return 1;
@@ -99,13 +102,14 @@ static int test_overwrite_existing_entry(void)
     static const unsigned char second[] = "updated";
     cache_t *cache = cache_create(32, 16);
     cache_value_t value;
+    cache_put_result_t result;
 
     if (cache == NULL) {
         return 1;
     }
 
-    if (cache_put(cache, "same", first, sizeof(first)) != 0 ||
-        cache_put(cache, "same", second, sizeof(second)) != 0 ||
+    if (cache_put(cache, "same", first, sizeof(first), &result) != 0 ||
+        cache_put(cache, "same", second, sizeof(second), &result) != 0 ||
         assert_true(cache_entry_count(cache) == 1, "overwrite should not duplicate entry") != 0 ||
         assert_true(cache_get(cache, "same", &value) == 0, "overwritten entry should be readable") != 0 ||
         assert_true(value.size_bytes == sizeof(second), "overwritten size should match latest bytes") != 0 ||

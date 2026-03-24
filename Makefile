@@ -9,6 +9,7 @@ SRC := \
 	src/request_parser.c \
 	src/cache.c \
 	src/lru.c \
+	src/metrics.c \
 	src/socket_utils.c \
 	src/thread_pool.c \
 	src/response_forwarder.c \

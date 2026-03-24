@@ -117,28 +117,36 @@ static void cache_remove_from_bucket_locked(cache_t *cache, cache_entry_t *entry
     }
 }
 
-static void cache_evict_if_needed_locked(cache_t *cache, size_t incoming_size)
+static void cache_evict_if_needed_with_result_locked(cache_t *cache, size_t incoming_size,
+    cache_put_result_t *result)
 {
+    int evicted = 0;
+
     while (cache->current_size_bytes + incoming_size > cache->max_total_size_bytes &&
            cache->lru_list.tail != NULL) {
-        cache_entry_t *evicted = (cache_entry_t *)lru_remove_tail(&cache->lru_list);
+        cache_entry_t *evicted_entry = (cache_entry_t *)lru_remove_tail(&cache->lru_list);
 
-        if (evicted == NULL) {
+        if (evicted_entry == NULL) {
             break;
         }
 
-        cache_remove_from_bucket_locked(cache, evicted);
-        if (cache->current_size_bytes >= evicted->lru.size_bytes) {
-            cache->current_size_bytes -= evicted->lru.size_bytes;
+        evicted = 1;
+        cache_remove_from_bucket_locked(cache, evicted_entry);
+        if (cache->current_size_bytes >= evicted_entry->lru.size_bytes) {
+            cache->current_size_bytes -= evicted_entry->lru.size_bytes;
         } else {
             cache->current_size_bytes = 0;
         }
-        cache_entry_destroy(evicted);
+        cache_entry_destroy(evicted_entry);
+    }
+
+    if (result != NULL && evicted) {
+        result->evicted = 1;
     }
 }
 
 static int cache_replace_entry_locked(cache_t *cache, cache_entry_t *entry,
-    const unsigned char *data, size_t size_bytes)
+    const unsigned char *data, size_t size_bytes, cache_put_result_t *result)
 {
     unsigned char *new_data;
     size_t previous_size;
@@ -147,7 +155,7 @@ static int cache_replace_entry_locked(cache_t *cache, cache_entry_t *entry,
     if (size_bytes > previous_size) {
         cache->current_size_bytes -= previous_size;
         lru_detach(&cache->lru_list, &entry->lru);
-        cache_evict_if_needed_locked(cache, size_bytes);
+        cache_evict_if_needed_with_result_locked(cache, size_bytes, result);
         lru_attach_front(&cache->lru_list, &entry->lru);
         if (cache->current_size_bytes + size_bytes > cache->max_total_size_bytes) {
             cache->current_size_bytes += previous_size;
@@ -231,7 +239,8 @@ void cache_destroy(cache_t *cache)
     free(cache);
 }
 
-int cache_put(cache_t *cache, const char *key, const unsigned char *data, size_t size_bytes)
+int cache_put(cache_t *cache, const char *key, const unsigned char *data, size_t size_bytes,
+    cache_put_result_t *result)
 {
     cache_entry_t *entry;
     size_t bucket_index;
@@ -244,17 +253,21 @@ int cache_put(cache_t *cache, const char *key, const unsigned char *data, size_t
         return -1;
     }
 
+    if (result != NULL) {
+        result->evicted = 0;
+    }
+
     cache_lock(cache);
 
     entry = cache_find_entry_locked(cache, key, &bucket_index);
     if (entry != NULL) {
-        int replace_result = cache_replace_entry_locked(cache, entry, data, size_bytes);
+        int replace_result = cache_replace_entry_locked(cache, entry, data, size_bytes, result);
 
         cache_unlock(cache);
         return replace_result;
     }
 
-    cache_evict_if_needed_locked(cache, size_bytes);
+    cache_evict_if_needed_with_result_locked(cache, size_bytes, result);
     if (cache->current_size_bytes + size_bytes > cache->max_total_size_bytes) {
         cache_unlock(cache);
         return -1;
