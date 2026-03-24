@@ -88,16 +88,17 @@ Implemented:
 - shared in-memory caching for eligible responses
 - metrics summary logging
 - unit tests for parser, LRU, cache, and metrics
+- local demo and benchmark scripts for reproducible performance checks
 
 Not implemented yet:
 
 - HTTPS CONNECT tunneling
 - advanced cache policy controls
-- benchmark scripts and performance notes
 - full architecture and benchmark docs polish beyond the current baseline
 
 ## Docs
 
 - [Architecture](docs/architecture.md)
 - [Design Decisions](docs/design-decisions.md)
+- [Benchmarks](docs/benchmarks.md)
 - [Test Notes](tests/test_notes.md)
