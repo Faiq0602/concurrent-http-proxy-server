@@ -1,6 +1,7 @@
 #include "socket_utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -110,6 +111,46 @@ socket_handle_t socket_utils_create_listener(int port, int backlog)
     return listener_socket;
 }
 
+socket_handle_t socket_utils_connect_to_host(const char *host, int port)
+{
+    socket_handle_t socket_handle = SOCKET_HANDLE_INVALID;
+    struct addrinfo hints;
+    struct addrinfo *result = NULL;
+    struct addrinfo *cursor;
+    char port_buffer[16];
+
+    if (host == NULL || port < 1 || port > 65535) {
+        return SOCKET_HANDLE_INVALID;
+    }
+
+    (void)memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    (void)snprintf(port_buffer, sizeof(port_buffer), "%d", port);
+    if (getaddrinfo(host, port_buffer, &hints, &result) != 0) {
+        return SOCKET_HANDLE_INVALID;
+    }
+
+    for (cursor = result; cursor != NULL; cursor = cursor->ai_next) {
+        socket_handle = socket(cursor->ai_family, cursor->ai_socktype, cursor->ai_protocol);
+        if (socket_handle == SOCKET_HANDLE_INVALID) {
+            continue;
+        }
+
+        if (connect(socket_handle, cursor->ai_addr, (int)cursor->ai_addrlen) == 0) {
+            break;
+        }
+
+        socket_utils_close(socket_handle);
+        socket_handle = SOCKET_HANDLE_INVALID;
+    }
+
+    freeaddrinfo(result);
+    return socket_handle;
+}
+
 socket_handle_t socket_utils_accept(socket_handle_t listener_socket,
     char *client_host, size_t client_host_size,
     char *client_service, size_t client_service_size)
@@ -141,6 +182,27 @@ int socket_utils_read(socket_handle_t socket_handle, char *buffer, size_t buffer
     }
 
     return recv(socket_handle, buffer, (int)buffer_size, 0);
+}
+
+int socket_utils_write_all(socket_handle_t socket_handle, const char *buffer, size_t buffer_size)
+{
+    size_t total_sent = 0;
+    int bytes_sent;
+
+    if (buffer == NULL) {
+        return -1;
+    }
+
+    while (total_sent < buffer_size) {
+        bytes_sent = send(socket_handle, buffer + total_sent, (int)(buffer_size - total_sent), 0);
+        if (bytes_sent <= 0) {
+            return -1;
+        }
+
+        total_sent += (size_t)bytes_sent;
+    }
+
+    return 0;
 }
 
 void socket_utils_close(socket_handle_t socket_handle)

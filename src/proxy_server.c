@@ -6,27 +6,27 @@
 #include "error.h"
 #include "logger.h"
 #include "request_parser.h"
+#include "response_forwarder.h"
 #include "socket_utils.h"
 
 #define PROXY_SERVER_BACKLOG 16
 #define PROXY_SERVER_READ_BUFFER_SIZE 8192
 
-static void log_parsed_request(const char *request_bytes)
+static int parse_request_or_log(const char *request_bytes, http_request_t *request)
 {
-    http_request_t request;
-
     if (request_bytes == NULL || request_bytes[0] == '\0') {
         logger_log(LOG_WARN, "received empty request payload");
-        return;
+        return -1;
     }
 
-    if (request_parser_parse(request_bytes, &request) != 0) {
+    if (request_parser_parse(request_bytes, request) != 0) {
         logger_log(LOG_WARN, "failed to parse incoming proxy request");
-        return;
+        return -1;
     }
 
     logger_log(LOG_INFO, "parsed request: method=%s host=%s port=%d path=%s version=%s",
-        request.method, request.host, request.port, request.path, request.version);
+        request->method, request->host, request->port, request->path, request->version);
+    return 0;
 }
 
 int proxy_server_run_once(const proxy_config_t *config)
@@ -36,6 +36,7 @@ int proxy_server_run_once(const proxy_config_t *config)
     char client_host[NI_MAXHOST];
     char client_service[NI_MAXSERV];
     char request_buffer[PROXY_SERVER_READ_BUFFER_SIZE + 1];
+    http_request_t request;
     int bytes_read;
 
     if (config == NULL) {
@@ -84,7 +85,19 @@ int proxy_server_run_once(const proxy_config_t *config)
 
     request_buffer[bytes_read] = '\0';
     logger_log(LOG_INFO, "read %d request bytes", bytes_read);
-    log_parsed_request(request_buffer);
+    if (parse_request_or_log(request_buffer, &request) != 0) {
+        socket_utils_close(client_socket);
+        socket_utils_close(listener_socket);
+        socket_utils_cleanup();
+        return -1;
+    }
+
+    if (response_forwarder_forward(client_socket, &request) != 0) {
+        socket_utils_close(client_socket);
+        socket_utils_close(listener_socket);
+        socket_utils_cleanup();
+        return -1;
+    }
 
     socket_utils_close(client_socket);
     socket_utils_close(listener_socket);
