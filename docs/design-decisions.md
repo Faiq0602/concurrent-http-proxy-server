@@ -22,7 +22,7 @@ Benefits:
 - predictable concurrency
 - easier resource reasoning
 - explicit queueing behavior
-- cleaner scaling story for interviews
+- clearer scaling behavior under load
 
 Tradeoff:
 
@@ -54,7 +54,7 @@ Benefits:
 
 - easier safety reasoning in C
 - simpler malformed-request handling
-- clearer interview discussion around limits and tradeoffs
+- clearer limits and tradeoffs in the implementation
 
 Tradeoff:
 
@@ -114,12 +114,11 @@ That tradeoff fits the PR-by-PR workflow and keeps each step honest.
 - no HTTPS CONNECT support
 - no persistent connections
 - no chunked-transfer-specific handling beyond raw relay
-- no benchmark scripts yet
 - no metrics export endpoint
 - cache eligibility is intentionally simple
 
 ## Planned Next Areas
 
-- tighter test and integration validation polish
-- benchmark scripts and reproducible performance notes
-- final cleanup and documentation polish
+- broader protocol support if project scope expands
+- richer cache eligibility rules if operational complexity becomes worthwhile
+- deeper observability only if it justifies the added surface area

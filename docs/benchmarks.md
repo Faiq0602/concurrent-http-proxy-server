@@ -42,6 +42,12 @@ Useful overrides:
 PROXY_PORT=19095 WORKERS=4 LOG_LEVEL=debug sh scripts/run_local_demo.sh
 ```
 
+If you want to keep the temporary logs and origin content for inspection:
+
+```sh
+KEEP_ARTIFACTS=1 sh scripts/run_local_demo.sh
+```
+
 ## Local Benchmark
 
 `scripts/benchmark.sh` starts a delayed local origin server and the proxy, then prints a small benchmark summary.
@@ -56,6 +62,12 @@ Useful overrides:
 
 ```sh
 WORKERS=2 REQUEST_COUNT=8 DELAY_MS=300 LOG_LEVEL=info sh scripts/benchmark.sh
+```
+
+To keep the temporary logs and generated origin script after the run:
+
+```sh
+KEEP_ARTIFACTS=1 sh scripts/benchmark.sh
 ```
 
 The benchmark summary includes:

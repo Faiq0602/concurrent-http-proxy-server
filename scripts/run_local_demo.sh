@@ -54,7 +54,11 @@ cleanup() {
         wait "$ORIGIN_PID" 2>/dev/null || true
     fi
 
-    rm -rf "$TMP_DIR"
+    if [ "${KEEP_ARTIFACTS:-0}" = "1" ]; then
+        echo "keeping demo artifacts in $TMP_DIR"
+    else
+        rm -rf "$TMP_DIR"
+    fi
 }
 
 trap cleanup EXIT INT TERM

@@ -56,6 +56,8 @@ curl -v --proxy http://127.0.0.1:9093 http://127.0.0.1:18080/
 
 Repeat the same request to exercise the cache.
 
+For a scripted local walkthrough or benchmark, see [`docs/benchmarks.md`](docs/benchmarks.md).
+
 ## Repository Layout
 
 ```text
@@ -94,7 +96,6 @@ Not implemented yet:
 
 - HTTPS CONNECT tunneling
 - advanced cache policy controls
-- full architecture and benchmark docs polish beyond the current baseline
 
 ## Docs
 

@@ -54,7 +54,11 @@ cleanup() {
         wait "$ORIGIN_PID" 2>/dev/null || true
     fi
 
-    rm -rf "$TMP_DIR"
+    if [ "${KEEP_ARTIFACTS:-0}" = "1" ]; then
+        echo "keeping benchmark artifacts in $TMP_DIR"
+    else
+        rm -rf "$TMP_DIR"
+    fi
 }
 
 trap cleanup EXIT INT TERM
@@ -163,5 +167,9 @@ echo "concurrency benchmark"
 echo "  elapsed_seconds:              $concurrency_time"
 echo "  serial_delay_baseline:        $expected_serial"
 echo "  worker_batching_expectation:  $expected_batched"
-echo
-echo "proxy log: $PROXY_LOG"
+
+if [ "${KEEP_ARTIFACTS:-0}" = "1" ]; then
+    echo
+    echo "proxy log:  $PROXY_LOG"
+    echo "origin log: $ORIGIN_LOG"
+fi

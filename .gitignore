@@ -3,6 +3,7 @@ build/
 *.o
 *.out
 *.log
+*.exe
 proxy
 proxy_server
 proxy.exe

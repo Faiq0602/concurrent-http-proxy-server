@@ -17,14 +17,8 @@ SRC := \
 OBJ := $(SRC:.c=.o)
 TARGET := proxy_server
 
-ifeq ($(OS),Windows_NT)
 TARGET_BIN := $(TARGET).exe
 LDLIBS := -lws2_32
-else
-RM := rm -f
-TARGET_BIN := $(TARGET)
-LDLIBS := -lpthread
-endif
 
 .PHONY: all clean test
 
@@ -67,7 +61,6 @@ $(TEST_METRICS_TARGET): $(TEST_METRICS_OBJ)
 	$(CC) $(CFLAGS) $(TEST_METRICS_OBJ) -o $(TEST_METRICS_TARGET)
 
 clean:
-ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist src\\main.o del /Q src\\main.o"
 	-cmd /C "if exist src\\config.o del /Q src\\config.o"
 	-cmd /C "if exist src\\logger.o del /Q src\\logger.o"
@@ -89,6 +82,3 @@ ifeq ($(OS),Windows_NT)
 	-cmd /C "if exist tests\\test_cache.exe del /Q tests\\test_cache.exe"
 	-cmd /C "if exist tests\\test_metrics.exe del /Q tests\\test_metrics.exe"
 	-cmd /C "if exist $(TARGET_BIN) del /Q $(TARGET_BIN)"
-else
-	$(RM) $(OBJ) $(TEST_OBJ) $(TEST_LRU_OBJ) $(TEST_CACHE_OBJ) $(TEST_METRICS_OBJ) $(TARGET_BIN) $(TEST_TARGET) $(TEST_LRU_TARGET) $(TEST_CACHE_TARGET) $(TEST_METRICS_TARGET)
-endif
